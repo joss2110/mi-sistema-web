@@ -3,59 +3,61 @@ const cors = require("cors");
 const multer = require("multer");
 const Stripe = require("stripe");
 const admin = require("firebase-admin");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔹 Inicializar Firebase Admin
+// 🔹 Inicializar Firebase Admin (solo Firestore)
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
   }),
-  storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
 });
 
 const db = admin.firestore(); // Firestore
-const bucket = admin.storage().bucket(); // Storage
 
-// 🔹 Stripe
-const stripe = Stripe(process.env.STRIPE_SECRET);
+// 🔹 Configurar Cloudinary (usa CLOUDINARY_URL)
+cloudinary.config(); // Se configura automáticamente desde la variable de entorno
 
-// 🔹 Multer (subida temporal)
-const upload = multer({ storage: multer.memoryStorage() });
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "fotos",
+    allowed_formats: ["jpg", "png", "jpeg"],
+  },
+});
 
-// 🔹 Ruta para subir fotos localmente y a Firebase Storage
+const upload = multer({ storage });
+
+// 🔹 Endpoint para subir fotos a Cloudinary
 app.post("/upload", upload.single("photo"), async (req, res) => {
   try {
-    const blob = bucket.file(`fotos/${req.file.originalname}`);
-    const blobStream = blob.createWriteStream({
-      metadata: { contentType: req.file.mimetype },
-    });
-
-    blobStream.on("error", (err) => res.status(500).json({ error: err.message }));
-    blobStream.on("finish", () => res.json({ message: "Foto subida a Firebase ✅" }));
-
-    blobStream.end(req.file.buffer); // usar buffer en lugar de file.path
+    res.json({ message: "Foto subida a Cloudinary ✅", url: req.file.path });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 🔹 Ruta para guardar datos en Firestore
+// 🔹 Endpoint para guardar datos en Firestore
 app.post("/add-data", async (req, res) => {
   try {
     await db.collection("productos").add(req.body);
     res.json({ message: "Datos guardados en Firestore ✅" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 🔹 Ruta de checkout con Stripe
+// 🔹 Endpoint de checkout con Stripe
+const stripe = Stripe(process.env.STRIPE_SECRET);
 app.post("/checkout", async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
@@ -76,6 +78,7 @@ app.post("/checkout", async (req, res) => {
     });
     res.json({ url: session.url });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
