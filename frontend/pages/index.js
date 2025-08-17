@@ -1,21 +1,13 @@
-import { useState } from "react";
-import axios from "axios";
-
 export default function Home() {
-  const [file, setFile] = useState(null);
-
-  const handleUpload = async () => {
-    const formData = new FormData();
-    formData.append("photo", file);
-    await axios.post("http://localhost:4000/upload", formData);
-    alert("Foto subida con éxito 🚀");
-  };
-
   return (
-    <div style={{ padding: 30 }}>
-      <h1>📸 Mi Sistema Web</h1>
-      <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-      <button onClick={handleUpload}>Subir Foto</button>
+    <div>
+      <h1>Bienvenido a mi Sistema Web</h1>
+      <ul>
+        <li><a href="/upload">Subir Foto</a></li>
+        <li><a href="/add-data">Agregar Producto</a></li>
+        <li><a href="/checkout">Pagar con Stripe</a></li>
+      </ul>
     </div>
   );
 }
+
