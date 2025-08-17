@@ -4,7 +4,6 @@ const multer = require("multer");
 const Stripe = require("stripe");
 const admin = require("firebase-admin");
 const cloudinary = require("cloudinary").v2;
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
 
 const app = express();
@@ -22,23 +21,32 @@ admin.initializeApp({
 
 const db = admin.firestore(); // Firestore
 
-// 🔹 Configurar Cloudinary (usa CLOUDINARY_URL)
-cloudinary.config(); // Se configura automáticamente desde la variable de entorno
+// 🔹 Configurar Cloudinary usando la variable CLOUDINARY_URL
+cloudinary.config(); // Se configura automáticamente desde process.env.CLOUDINARY_URL
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "fotos",
-    allowed_formats: ["jpg", "png", "jpeg"],
-  },
-});
-
-const upload = multer({ storage });
+// 🔹 Multer en memoria
+const upload = multer({ storage: multer.memoryStorage() });
 
 // 🔹 Endpoint para subir fotos a Cloudinary
 app.post("/upload", upload.single("photo"), async (req, res) => {
   try {
-    res.json({ message: "Foto subida a Cloudinary ✅", url: req.file.path });
+    const streamifier = require("streamifier");
+
+    const streamUpload = (fileBuffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "fotos" },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        streamifier.createReadStream(fileBuffer).pipe(stream);
+      });
+    };
+
+    const result = await streamUpload(req.file.buffer);
+    res.json({ message: "Foto subida a Cloudinary ✅", url: result.secure_url });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
