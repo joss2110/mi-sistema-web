@@ -2,23 +2,58 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const Stripe = require("stripe");
+const admin = require("firebase-admin");
 require("dotenv").config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Stripe
-const stripe = Stripe(process.env.STRIPE_SECRET);
-
-// Multer (para fotos locales de prueba)
-const upload = multer({ dest: "uploads/" });
-
-app.post("/upload", upload.single("photo"), (req, res) => {
-  console.log(req.file);
-  res.json({ message: "Foto recibida ✅" });
+// 🔹 Inicializar Firebase Admin
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  }),
+  storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
 });
 
+const db = admin.firestore(); // Firestore
+const bucket = admin.storage().bucket(); // Storage
+
+// 🔹 Stripe
+const stripe = Stripe(process.env.STRIPE_SECRET);
+
+// 🔹 Multer (subida temporal)
+const upload = multer({ dest: "uploads/" });
+
+// 🔹 Ruta para subir fotos localmente y a Firebase Storage
+app.post("/upload", upload.single("photo"), async (req, res) => {
+  try {
+    // Subir a Firebase Storage
+    const file = await bucket.upload(req.file.path, {
+      destination: `fotos/${req.file.originalname}`,
+      metadata: { contentType: req.file.mimetype },
+    });
+
+    res.json({ message: "Foto subida a Firebase ✅", file: req.file.originalname });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 Ruta para guardar datos en Firestore
+app.post("/add-data", async (req, res) => {
+  try {
+    await db.collection("productos").add(req.body);
+    res.json({ message: "Datos guardados en Firestore ✅" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 Ruta de checkout con Stripe
 app.post("/checkout", async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
@@ -44,5 +79,4 @@ app.post("/checkout", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-
 app.listen(PORT, () => console.log(`🚀 Backend en http://localhost:${PORT}`));
