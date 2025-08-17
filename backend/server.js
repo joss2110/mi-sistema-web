@@ -26,18 +26,20 @@ const bucket = admin.storage().bucket(); // Storage
 const stripe = Stripe(process.env.STRIPE_SECRET);
 
 // 🔹 Multer (subida temporal)
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ storage: multer.memoryStorage() });
 
 // 🔹 Ruta para subir fotos localmente y a Firebase Storage
 app.post("/upload", upload.single("photo"), async (req, res) => {
   try {
-    // Subir a Firebase Storage
-    const file = await bucket.upload(req.file.path, {
-      destination: `fotos/${req.file.originalname}`,
+    const blob = bucket.file(`fotos/${req.file.originalname}`);
+    const blobStream = blob.createWriteStream({
       metadata: { contentType: req.file.mimetype },
     });
 
-    res.json({ message: "Foto subida a Firebase ✅", file: req.file.originalname });
+    blobStream.on("error", (err) => res.status(500).json({ error: err.message }));
+    blobStream.on("finish", () => res.json({ message: "Foto subida a Firebase ✅" }));
+
+    blobStream.end(req.file.buffer); // usar buffer en lugar de file.path
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
