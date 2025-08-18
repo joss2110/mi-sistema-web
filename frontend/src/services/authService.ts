@@ -18,7 +18,11 @@ export const login = async (data: LoginData) => {
 
     const result = await response.json();
     return result.user;
-  } catch (error: any) {
-    throw new Error(error.message);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    } else {
+      throw new Error("Error desconocido");
+    }
   }
 };

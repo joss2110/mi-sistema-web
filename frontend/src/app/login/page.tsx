@@ -1,7 +1,7 @@
-"use client"; // 🔑 Esto permite usar useState y useContext
+"use client";
 
 import React, { useState, useContext } from "react";
-import { login } from "../../services/authService";
+import { login, LoginData } from "../../services/authService";
 import { AuthContext } from "../../context/AuthContext";
 
 const LoginPage: React.FC = () => {
@@ -13,12 +13,19 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    const data: LoginData = { email, password };
+
     try {
-      const user = await login({ email, password });
+      const user = await login(data);
       setUser(user);
       alert("Login exitoso ✅");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Error desconocido");
+      }
     }
   };
 
